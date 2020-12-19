@@ -1,0 +1,224 @@
+from linebot import LineBotApi, WebhookParser
+from linebot.exceptions import InvalidSignatureError, LineBotApiError
+from linebot.models import MessageEvent, TextSendMessage, TemplateSendMessage, ButtonsTemplate, MessageTemplateAction, CarouselTemplate, CarouselColumn
+
+import requests
+from bs4 import BeautifulSoup
+import re
+
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.wait import WebDriverWait
+
+
+line_bot_api = LineBotApi(settings.LINE_CHANNEL_ACCESS_TOKEN)
+parser = WebhookParser(settings.LINE_CHANNEL_SECRET)
+
+#第二功能蔬菜反查
+#代碼轉換字典
+veg_dict = {'九層塔': 'LP2', '大蒜': 'SG5', '小白菜': 'LB22', '香芹': 'LV1', '毛豆': 'FQ1', 
+ '牛蒡': 'SM1', '冬瓜': 'FE1', '大白菜': 'LC1', '半天筍': 'SZ1', '玉米': 'FY6', 
+ '地瓜': 'SO3', '地瓜葉': 'LO1', '高麗菜': 'LA1', '石蓮花': 'FU3', '百合': 'SZ4', 
+ '竹筍': 'SH5', '杏鮑菇': 'MJ1', '秀珍菇': 'MI1', '芋頭': 'SJ2', '豆薯': 'SL1', 
+ '油菜': 'LN1', '芥菜': 'LJ3', '芥藍菜': 'LK2', '香菜': 'LP1', '花胡瓜': 'FD1', 
+ '綠花椰菜': 'FB11', '花椰菜': 'FB2', '芹菜': 'LG1', '綠豆芽': 'SX1', '黃豆芽': 'SX2', 
+ '豌豆芽': 'SX3', '苜蓿芽': 'SX4', '花豆': 'FX2', '金針菇': 'ME2', '青江菜': 'LD1', 
+ '青花菜': 'FR1', '紅蔥頭': 'SE5', '蔥': 'SE6', '南瓜': 'FT2', '蒲瓜': 'FH3', 
+ '柳松菇': 'MN1', '洋菇': 'MA2', '洋蔥': 'SD1', '洛神花': 'FW2', '珊瑚菇': 'ML2', 
+ '皇宮菜': 'LE2', '紅鳳菜': 'LQ1', '胡瓜': 'FC1', '胡蘿蔔': 'SB2', '苦瓜': 'FG1', 
+ '茄子': 'FI2', '韭菜': 'SF1', '韭菜黃': 'SF2', '韭菜花': 'SF3', '海帶': 'LT2', 
+ '水蓮': 'LT3', '茭白筍': 'SQ1', '茴香': 'LS1', '茼蒿': 'LL1', '山茼蒿': 'LL2', 
+ '草菇': 'MB1', '佛手瓜': 'FU1', '龍鬚菜': 'FU2', '馬鈴薯': 'SC1', '敏豆': 'FN1', 
+ '醜豆': 'FN5', '大頭菜': 'SW1', '甜椒': 'FK4', '青椒': 'FK5', '荸薺': 'SK1', 
+ '紅莧菜': 'LM1', '莧菜': 'LM2', '雪里紅': 'OB1', '番茄': 'FJ3', '絲瓜': 'FF1',
+ '角瓜': 'FF2', '菜豆': 'FM2', '菠菜': 'LH1', '菱角': 'SR1', '皇帝豆': 'FP2', 
+ '越瓜': 'FS2', '秋葵': 'FA1', '龍葵': 'LY2', '萵苣': 'LI2', '大陸妹': 'LI3', 
+ 'A菜': 'LI5', '花生': 'FZ1', '辣椒': 'FV1', '朝天椒': 'FV4', '糯米椒': 'FV6', 
+ '蓮藕': 'SN1', '荷蘭豆': 'FL2', '豌豆': 'FL6', '過貓': 'LX1', '山蘇': 'LX2', 
+ '木耳': 'MC1', '香菇': 'MD1', '空心菜': 'LF2', '老薑': 'SP1', '嫩薑': 'SP2', 
+ '山藥': 'SU2', '樹薯': 'SU3', '鴻禧菇': 'MK2', '川七': 'LZ2', '白蘆筍': 'SV1', 
+ '綠蘆筍': 'SV2', '鮑魚菇': 'MF1', '鹹菜': 'OA2', '蘿蔔': 'SA32', '櫻桃蘿蔔': 'SA42', '蘿蔔乾': 'OD1'}
+
+#第三功能食譜
+def recipe(veg_name):
+    recipe_url = "https://icook.tw/search/"+ veg_name + "/"
+    u = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36'
+    re = requests.get(recipe_url, headers = {'user-agent': u})
+    soup = BeautifulSoup(re.text,'html.parser')
+    recipe_reco = soup.select('h2')
+    for recipe in recipe_reco[1:6]:
+        recipe = recipe.text.replace(' ', '').replace('\n', '')
+    recipe_reco_url = soup.find_all('a', class_='browse-recipe-link')
+    for recipe_url in recipe_reco_url[1:6]:
+        return recipe + "\n" +'https://icook.tw'+recipe_url.get('href')
+
+response_re = requests.get("https://www.twfood.cc/vege", timeout = None)
+soup = BeautifulSoup(response_re.text, "html.parser")
+veg_name = [] #爬取蔬菜名稱
+lst = soup.findAll("h4")[:5]
+for veg in lst:
+  string = re.sub("\s", "", veg.find("a").text)
+  if "-" in string:
+      idx = string.index("-")
+      string = string[:idx]
+  else:
+    string = string 
+  veg_name.append(string)
+recommand = recommand = "\n".join(veg_name)
+
+veg_pic = []
+body = soup.body
+a_lst = body.findAll("a")[1:]
+for img in a_lst:
+    if img.find("img"):
+        pic = img.find("img")["src"]
+        veg_pic.append(pic)
+
+
+@csrf_exempt
+def callback(request):
+    if request.method == 'POST':
+        signature = request.META['HTTP_X_LINE_SIGNATURE']
+        body = request.body.decode('utf-8')
+
+        try:
+            events = parser.parse(body, signature)  # 傳入的事件
+        except InvalidSignatureError:
+            return HttpResponseForbidden()
+        except LineBotApiError:
+            return HttpResponseBadRequest()
+
+
+        for event in events:
+            if isinstance(event, MessageEvent):# 如果有訊息事件
+                                                           
+                if event.message.text in veg_dict :
+                    url = "https://www.twfood.cc/vege/" + veg_dict[event.message.text]
+                    response_price = requests.get(url, timeout=None)
+                    soup = BeautifulSoup(response_price.text, "html.parser")
+                    body = soup.body
+                    allprice = body.findAll("span",{"class":"text-price"})
+                    veg_price = "預估零售價:" + allprice[2].text.rstrip() + "元/公斤" + "\n" + "預估零售價:" + allprice[3].text.rstrip() + "元/台斤"
+                    line_bot_api.reply_message(
+                        event.reply_token, TextSendMessage(text=veg_price)
+                        )
+                    
+                else:
+                    if event.message.text == "今日推薦":
+                        
+
+                        reply_arr = []
+                        reply_arr.append(
+                            TextSendMessage(text=recommand)
+                            )
+
+                        reply_arr.append(
+                            TemplateSendMessage(
+                                alt_text='Buttons template',
+                                template=ButtonsTemplate(
+                                    title='是否查看推薦食譜',
+                                    text='一起用當季蔬菜煮好菜吧～',
+                                    actions=[
+                                        MessageTemplateAction(
+                                            label= "好啊",
+                                            text= "今日推薦食譜"
+                                            ),                                                                                                                                
+                                        ]     
+                                )
+                            )
+                        ) #對到reply_arr.append
+
+                        line_bot_api.reply_message(
+                            event.reply_token, reply_arr
+                            )
+
+                        
+                    if event.message.text == "今日推薦食譜":
+                        line_bot_api.reply_message(
+                            event.reply_token,
+                            TemplateSendMessage(
+                                alt_text='Carousel template',
+                                template=CarouselTemplate(
+                                    columns=[
+                                        CarouselColumn(
+                                            thumbnail_image_url="https://www.twfood.cc/" + veg_pic[0],
+                                            title=veg_name[0][6:],
+                                            text='點擊查詢↓查看食譜',
+                                            actions=[
+                                                MessageTemplateAction(
+                                                    label="查詢",
+                                                    text="查詢食譜" + veg_name[0][6:],
+                                                    ),
+                                                ]
+                                            ),
+                                        
+                                        CarouselColumn(
+                                            thumbnail_image_url="https://www.twfood.cc/" + veg_pic[1],
+                                            title=veg_name[1][6:],
+                                            text='點擊查詢↓查看食譜',
+                                            actions=[
+                                                MessageTemplateAction(
+                                                    label="查詢",
+                                                    text="查詢食譜" + veg_name[1][6:],
+                                                    ),
+                                                ]
+                                            ),
+                                        
+                                        CarouselColumn(
+                                            thumbnail_image_url="https://www.twfood.cc/" + veg_pic[2],
+                                            title=veg_name[2][6:],
+                                            text='點擊查詢↓查看食譜',
+                                            actions=[
+                                                MessageTemplateAction(
+                                                    label="查詢",
+                                                    text="查詢食譜" + veg_name[2][6:],
+                                                    ),
+                                                ]
+                                            ),
+                                        
+                                        CarouselColumn(
+                                            thumbnail_image_url="https://www.twfood.cc/" + veg_pic[3],
+                                            title=veg_name[3][6:],
+                                            text='點擊查詢↓查看食譜',
+                                            actions=[
+                                                MessageTemplateAction(
+                                                    label="查詢",
+                                                    text="查詢食譜" + veg_name[3][6:]
+                                                    ),
+                                                ]
+                                            ),
+                                        
+                                        CarouselColumn(
+                                            thumbnail_image_url="https://www.twfood.cc/" + veg_pic[4],
+                                            title=veg_name[4][6:],
+                                            text='點擊查詢↓查看食譜',
+                                            actions=[
+                                                MessageTemplateAction(
+                                                    label="查詢",
+                                                    text="查詢食譜" + veg_name[4][6:]
+                                                    ),
+                                                ]
+                                            )
+                                        ]
+                                    )
+                                )
+                                        
+                             )
+
+
+                    if "查詢食譜" in event.message.text:
+                        line_bot_api.reply_message(
+                            event.reply_token, TextSendMessage(text="為你獻上食譜")
+                            )
+                        
+                        
+                    else:
+                        line_bot_api.reply_message(
+                        event.reply_token, TextSendMessage(text="輸入菜名有誤")
+                        )
+                    
+
+        return HttpResponse()
+
+    
+    else:
+        return HttpResponseBadRequest()
